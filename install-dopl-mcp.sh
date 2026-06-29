@@ -1,129 +1,138 @@
 #!/bin/bash
 # ─────────────────────────────────────────────────────────────────────────────
-# DOPL — MCP Setup Installer
-# Installs the mcp-installer Claude skill + Google Sheets MCP for Claude Desktop
-# Run with: bash install-dopl-mcp.sh
+# DOPL — One-Click MCP Setup
+# Installs the Google Sheets MCP + mcp-installer Claude skill
 # ─────────────────────────────────────────────────────────────────────────────
-
-set -e
 
 BOLD="\033[1m"
 GREEN="\033[0;32m"
 YELLOW="\033[0;33m"
 RED="\033[0;31m"
+BLUE="\033[0;34m"
 RESET="\033[0m"
 
+clear
 echo ""
-echo -e "${BOLD}DOPL — Claude MCP Setup${RESET}"
-echo "─────────────────────────────────────────────────────"
-echo "This script will:"
-echo "  1. Install the mcp-installer Claude skill"
-echo "  2. Install the Google Sheets MCP for Claude Desktop"
-echo "  3. Verify everything is configured correctly"
+echo -e "${BOLD}╔════════════════════════════════════════════╗${RESET}"
+echo -e "${BOLD}║        DOPL — Claude MCP Setup             ║${RESET}"
+echo -e "${BOLD}╚════════════════════════════════════════════╝${RESET}"
 echo ""
-echo -e "${YELLOW}You will need:${RESET}"
-echo "  • Your Google Service Account credentials JSON file"
-echo "  • Claude Desktop installed on this Mac"
-echo "  • Internet connection"
+echo "This will set up two things on your Mac:"
 echo ""
-read -p "Press Enter to start, or Ctrl+C to cancel..."
+echo -e "  ${BLUE}1.${RESET} Google Sheets MCP — lets Claude read and write"
+echo "     to the Delhi Openings scheduling sheet"
+echo ""
+echo -e "  ${BLUE}2.${RESET} MCP Installer skill — lets Claude install any"
+echo "     future MCP tools without errors"
+echo ""
+echo -e "${YELLOW}Before you start, make sure you have:${RESET}"
+echo "  • Claude Desktop open on this Mac"
+echo "  • The credentials file Apoorv sent you"
+echo "    (a file ending in .json)"
+echo ""
+read -p "Ready? Press Enter to begin..."
 
-# ── ENVIRONMENT CHECK ────────────────────────────────────────────────────────
+# ── STEP 1: Check Claude Desktop ─────────────────────────────────────────────
 echo ""
-echo -e "${BOLD}Step 1 — Checking environment...${RESET}"
+echo -e "${BOLD}[1/5] Checking Claude Desktop...${RESET}"
 
-OS_ARCH=$(uname -m)
-HOME_DIR="$HOME"
-USERNAME=$(whoami)
-echo "  Mac architecture: $OS_ARCH"
-echo "  Home directory:   $HOME_DIR"
-echo "  User:             $USERNAME"
-
-# Check Claude Desktop
-CLAUDE_CONFIG_DIR="$HOME_DIR/Library/Application Support/Claude"
+CLAUDE_CONFIG_DIR="$HOME/Library/Application Support/Claude"
 CLAUDE_CONFIG="$CLAUDE_CONFIG_DIR/claude_desktop_config.json"
-if [ -d "$CLAUDE_CONFIG_DIR" ]; then
-  echo -e "  ${GREEN}✓ Claude Desktop found${RESET}"
-else
-  echo -e "  ${RED}✗ Claude Desktop not found at expected location${RESET}"
-  echo "    Please install Claude Desktop from https://claude.ai/download and re-run this script."
+
+if [ ! -d "$CLAUDE_CONFIG_DIR" ]; then
+  echo ""
+  echo -e "${RED}✗ Claude Desktop is not installed.${RESET}"
+  echo ""
+  echo "  Please download it from: https://claude.ai/download"
+  echo "  Install it, then run this script again."
+  echo ""
+  read -p "Press Enter to exit..."
   exit 1
 fi
+echo -e "  ${GREEN}✓ Claude Desktop found${RESET}"
 
-# ── INSTALL UVX ──────────────────────────────────────────────────────────────
+# ── STEP 2: Install uvx ───────────────────────────────────────────────────────
 echo ""
-echo -e "${BOLD}Step 2 — Checking uvx (Python package runner)...${RESET}"
+echo -e "${BOLD}[2/5] Checking package installer (uvx)...${RESET}"
+
+export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 
 if which uvx >/dev/null 2>&1; then
   UVX_PATH=$(which uvx)
-  echo -e "  ${GREEN}✓ uvx already installed at $UVX_PATH${RESET}"
+  echo -e "  ${GREEN}✓ Already installed at $UVX_PATH${RESET}"
 else
-  echo "  Installing uv/uvx..."
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-  # Source the new path
-  source "$HOME_DIR/.cargo/env" 2>/dev/null || true
-  source "$HOME_DIR/.local/bin/env" 2>/dev/null || true
-  export PATH="$HOME_DIR/.local/bin:$PATH"
+  echo "  Installing uvx — this takes about 30 seconds..."
+  curl -LsSf https://astral.sh/uv/install.sh | sh > /dev/null 2>&1
+  source "$HOME/.local/bin/env" 2>/dev/null || true
+  source "$HOME/.cargo/env" 2>/dev/null || true
+  export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 
   if which uvx >/dev/null 2>&1; then
     UVX_PATH=$(which uvx)
-    echo -e "  ${GREEN}✓ uvx installed at $UVX_PATH${RESET}"
+    echo -e "  ${GREEN}✓ Installed at $UVX_PATH${RESET}"
   else
-    echo -e "  ${RED}✗ uvx installation failed.${RESET}"
-    echo "    Try manually: curl -LsSf https://astral.sh/uv/install.sh | sh"
+    echo -e "  ${RED}✗ Installation failed.${RESET}"
+    echo "  Please contact Apoorv."
+    read -p "Press Enter to exit..."
     exit 1
   fi
 fi
 
-# ── CREDENTIALS FILE ─────────────────────────────────────────────────────────
+# ── STEP 3: Credentials file ──────────────────────────────────────────────────
 echo ""
-echo -e "${BOLD}Step 3 — Google Service Account credentials${RESET}"
+echo -e "${BOLD}[3/5] Setting up Google credentials...${RESET}"
 echo ""
-echo "  You need a Google Service Account JSON credentials file."
-echo "  This file gives Claude access to the Delhi Openings Google Sheet."
+echo "  Apoorv should have sent you a file that ends in .json"
+echo "  It is probably in your Downloads folder."
 echo ""
-echo "  If you already have it, enter the full path below."
-echo "  Example: /Users/$USERNAME/Downloads/delhi-sheets-credentials.json"
+echo "  Drag the file into this window and press Enter,"
+echo "  or type the full path to it."
 echo ""
 
-while true; do
-  read -p "  Path to credentials JSON file: " CREDS_INPUT
-  # Expand tilde manually
-  CREDS_PATH="${CREDS_INPUT/#\~/$HOME_DIR}"
+STABLE_CREDS="$HOME/dopl-sheets-credentials.json"
 
-  if [ -f "$CREDS_PATH" ]; then
-    # Validate it looks like a service account JSON
-    if python3 -c "import json; d=json.load(open('$CREDS_PATH')); assert 'client_email' in d" 2>/dev/null; then
-      CLIENT_EMAIL=$(python3 -c "import json; print(json.load(open('$CREDS_PATH'))['client_email'])")
-      echo -e "  ${GREEN}✓ Valid credentials file found${RESET}"
-      echo "    Service account: $CLIENT_EMAIL"
-      break
-    else
-      echo -e "  ${RED}✗ File found but doesn't look like a valid service account JSON.${RESET}"
-      echo "    Make sure you downloaded the JSON key from Google Cloud → IAM → Service Accounts."
-    fi
-  else
-    echo -e "  ${RED}✗ File not found at: $CREDS_PATH${RESET}"
-    echo "    Please check the path and try again."
+# Check if already installed from a previous run
+if [ -f "$STABLE_CREDS" ]; then
+  if python3 -c "import json; d=json.load(open('$STABLE_CREDS')); assert 'client_email' in d" 2>/dev/null; then
+    CLIENT_EMAIL=$(python3 -c "import json; print(json.load(open('$STABLE_CREDS'))['client_email'])")
+    echo -e "  ${GREEN}✓ Credentials already set up from a previous install${RESET}"
+    echo "    ($CLIENT_EMAIL)"
+    SKIP_CREDS=true
   fi
-done
-
-# Copy credentials to a stable location
-STABLE_CREDS="$HOME_DIR/dopl-sheets-credentials.json"
-if [ "$CREDS_PATH" != "$STABLE_CREDS" ]; then
-  cp "$CREDS_PATH" "$STABLE_CREDS"
-  echo "  Copied to stable location: $STABLE_CREDS"
 fi
-chmod 600 "$STABLE_CREDS"
-echo -e "  ${GREEN}✓ Credentials file secured (permissions: 600)${RESET}"
 
-# ── CONFIGURE CLAUDE DESKTOP ─────────────────────────────────────────────────
+if [ -z "$SKIP_CREDS" ]; then
+  while true; do
+    read -p "  Path to .json file: " CREDS_INPUT
+    # Strip quotes (from drag and drop) and expand tilde
+    CREDS_INPUT="${CREDS_INPUT%\'}"
+    CREDS_INPUT="${CREDS_INPUT#\'}"
+    CREDS_INPUT="${CREDS_INPUT%\"}"
+    CREDS_INPUT="${CREDS_INPUT#\"}"
+    CREDS_PATH="${CREDS_INPUT/#\~/$HOME}"
+
+    if [ ! -f "$CREDS_PATH" ]; then
+      echo -e "  ${RED}✗ Can't find a file at that path. Try again.${RESET}"
+      continue
+    fi
+
+    if ! python3 -c "import json; d=json.load(open('$CREDS_PATH')); assert 'client_email' in d" 2>/dev/null; then
+      echo -e "  ${RED}✗ That doesn't look like the right file. It should be a Google credentials JSON.${RESET}"
+      continue
+    fi
+
+    CLIENT_EMAIL=$(python3 -c "import json; print(json.load(open('$CREDS_PATH'))['client_email'])")
+    cp "$CREDS_PATH" "$STABLE_CREDS"
+    chmod 600 "$STABLE_CREDS"
+    echo -e "  ${GREEN}✓ Credentials saved securely${RESET}"
+    break
+  done
+fi
+
+# ── STEP 4: Configure Claude Desktop ─────────────────────────────────────────
 echo ""
-echo -e "${BOLD}Step 4 — Configuring Claude Desktop...${RESET}"
+echo -e "${BOLD}[4/5] Configuring Claude Desktop...${RESET}"
 
-mkdir -p "$CLAUDE_CONFIG_DIR"
-
-NEW_SERVER_KEY="google-sheets"
 NEW_SERVER_JSON="{
   \"command\": \"$UVX_PATH\",
   \"args\": [\"mcp-google-sheets@latest\"],
@@ -132,93 +141,76 @@ NEW_SERVER_JSON="{
   }
 }"
 
+mkdir -p "$CLAUDE_CONFIG_DIR"
+
 if [ ! -f "$CLAUDE_CONFIG" ]; then
-  # Create fresh config
-  echo "{\"mcpServers\":{\"$NEW_SERVER_KEY\":$NEW_SERVER_JSON}}" | \
+  echo "{\"mcpServers\":{\"google-sheets\":$NEW_SERVER_JSON}}" | \
     python3 -m json.tool > "$CLAUDE_CONFIG"
-  echo -e "  ${GREEN}✓ Created new Claude Desktop config${RESET}"
 else
-  # Merge into existing config
-  python3 - <<PYEOF
+  python3 - << PYEOF
 import json
-
-config_path = "$CLAUDE_CONFIG"
-with open(config_path) as f:
+with open("$CLAUDE_CONFIG") as f:
     config = json.load(f)
-
 if "mcpServers" not in config:
     config["mcpServers"] = {}
-
-config["mcpServers"]["$NEW_SERVER_KEY"] = $NEW_SERVER_JSON
-
-with open(config_path, "w") as f:
+config["mcpServers"]["google-sheets"] = $NEW_SERVER_JSON
+with open("$CLAUDE_CONFIG", "w") as f:
     json.dump(config, f, indent=2)
-
-existing = [k for k in config["mcpServers"] if k != "$NEW_SERVER_KEY"]
-if existing:
-    print(f"  Existing servers preserved: {existing}")
-print("  ✓ Merged google-sheets into Claude Desktop config")
 PYEOF
-  echo -e "  ${GREEN}✓ Claude Desktop config updated${RESET}"
 fi
 
-# Validate JSON
 if python3 -m json.tool "$CLAUDE_CONFIG" >/dev/null 2>&1; then
-  echo -e "  ${GREEN}✓ Config JSON is valid${RESET}"
+  echo -e "  ${GREEN}✓ Claude Desktop configured${RESET}"
 else
-  echo -e "  ${RED}✗ Config JSON is invalid — something went wrong${RESET}"
-  echo "    Check: $CLAUDE_CONFIG"
+  echo -e "  ${RED}✗ Configuration file has an error. Please contact Apoorv.${RESET}"
   exit 1
 fi
 
-# ── DOWNLOAD AND INSTALL THE CLAUDE SKILL ────────────────────────────────────
+# ── STEP 5: Download Claude skill ─────────────────────────────────────────────
 echo ""
-echo -e "${BOLD}Step 5 — Downloading mcp-installer Claude skill...${RESET}"
+echo -e "${BOLD}[5/5] Downloading MCP Installer skill...${RESET}"
 
 SKILL_URL="https://github.com/minorsathya-cloud/mcp-installer-claude-skill/releases/latest/download/mcp-installer.skill"
-SKILL_DEST="$HOME_DIR/Downloads/mcp-installer.skill"
+SKILL_DEST="$HOME/Downloads/mcp-installer.skill"
 
 if curl -fsSL "$SKILL_URL" -o "$SKILL_DEST" 2>/dev/null; then
-  echo -e "  ${GREEN}✓ Skill downloaded to $SKILL_DEST${RESET}"
+  echo -e "  ${GREEN}✓ Skill downloaded to Downloads folder${RESET}"
+  SKILL_DOWNLOADED=true
 else
-  echo -e "  ${YELLOW}⚠ Could not auto-download the skill file.${RESET}"
-  echo "    Download it manually from:"
-  echo "    https://github.com/minorsathya-cloud/mcp-installer-claude-skill/releases/latest"
-  echo "    Save as: mcp-installer.skill"
-  SKILL_DEST=""
+  echo -e "  ${YELLOW}⚠ Could not download skill automatically${RESET}"
+  echo "    You can get it from Apoorv or download it from:"
+  echo "    github.com/minorsathya-cloud/mcp-installer-claude-skill/releases"
 fi
 
-# ── SUMMARY ──────────────────────────────────────────────────────────────────
+# ── DONE ─────────────────────────────────────────────────────────────────────
 echo ""
-echo "─────────────────────────────────────────────────────"
-echo -e "${BOLD}${GREEN}Setup Complete!${RESET}"
-echo "─────────────────────────────────────────────────────"
+echo -e "${BOLD}╔════════════════════════════════════════════╗${RESET}"
+echo -e "${BOLD}║            Setup Complete! 🎉              ║${RESET}"
+echo -e "${BOLD}╚════════════════════════════════════════════╝${RESET}"
 echo ""
-echo -e "${GREEN}✓ uvx:${RESET}         $UVX_PATH"
-echo -e "${GREEN}✓ Credentials:${RESET} $STABLE_CREDS"
-echo -e "${GREEN}✓ Config:${RESET}      $CLAUDE_CONFIG"
-echo -e "${GREEN}✓ Sheet access:${RESET} Share your Google Sheet with:"
-echo "               $CLIENT_EMAIL"
-echo "               (give Editor access)"
+echo -e "${BOLD}Two quick things to finish:${RESET}"
 echo ""
-if [ -n "$SKILL_DEST" ]; then
-  echo -e "${BOLD}One manual step — install the Claude skill:${RESET}"
-  echo "  1. Go to claude.ai → Settings → Skills"
-  echo "  2. Click Upload Skill"
-  echo "  3. Select: $SKILL_DEST"
-  echo ""
+echo -e "${BLUE}Thing 1 — Restart Claude Desktop${RESET}"
+echo "  Press Cmd+Q to fully quit Claude Desktop"
+echo "  Then reopen it"
+echo "  (just closing the window is not enough)"
+echo ""
+if [ "$SKILL_DOWNLOADED" = true ]; then
+echo -e "${BLUE}Thing 2 — Install the Claude skill${RESET}"
+echo "  1. Go to claude.ai → Settings → Skills"
+echo "  2. Click Upload Skill"
+echo "  3. Select this file from your Downloads:"
+echo "     mcp-installer.skill"
+echo ""
 fi
-echo -e "${BOLD}Then restart Claude Desktop:${RESET}"
-echo "  Press Cmd+Q to fully quit, then relaunch."
-echo ""
-echo -e "${BOLD}Verify it worked:${RESET}"
-echo "  Open a new Claude chat and ask:"
+echo -e "${BOLD}To verify it worked:${RESET}"
+echo "  Open a new Claude chat and type:"
 echo "  \"What tools do you have available?\""
-echo "  You should see Google Sheets tools listed."
+echo "  You should see Google Sheets tools in the list."
 echo ""
-echo -e "${BOLD}Important reminder:${RESET}"
-echo "  Share the Delhi Openings Google Sheet with:"
-echo "  $CLIENT_EMAIL"
-echo "  as Editor — otherwise Claude can read but not write."
+echo -e "${YELLOW}Important — share the Sheet:${RESET}"
+echo "  The scheduling sheet must be shared with:"
+echo -e "  ${BOLD}$CLIENT_EMAIL${RESET}"
+echo "  as Editor. Ask Apoorv if this hasn't been done."
 echo ""
-echo "─────────────────────────────────────────────────────"
+read -p "Press Enter to close..."
